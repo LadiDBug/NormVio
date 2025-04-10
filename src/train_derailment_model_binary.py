@@ -25,10 +25,13 @@ from config import BERT_TYPE, BERT_CACHE, HIDDEN_SIZE, MAX_LENGTH, ENC_NUM_LAYER
 from config import BATCH_SIZE, VALID_BATCH_SIZE, CLIP, TF_RATIO, LR, EPOCHS, EARLY_STOPPING
 from models import EncoderBERT, ContextEncoderRNN, SingleTargetClf, Predictor
 from utils import import_jsonl, import_json, import_tsv, save_json, check_or_create_dir
+# Create temp directory at the start
+os.makedirs("temp", exist_ok=True)
 
 NUM_PROCESS = 22
 # TODO: capire se usano o no cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print('DEVICE: ' , device)
 tokenizer = BertTokenizer.from_pretrained(BERT_TYPE)
 
 def set_random_seed(seed):
@@ -245,7 +248,7 @@ def preprocess_conv_with_rule(inp):
 def preprocess_data(df, df_rules, cat_idx_mapping, target_class_idx, min_context=2, max_context=4, use_context=False, append_subreddit=None, append_rule=False, is_test=False):
     pairs = []
     rule_counts = {}
-    df_rules_subreddit = {subreddit: sub_df for subreddit, sub_df in df_rules.groupby('subreddit')}
+    #df_rules_subreddit = {subreddit: sub_df for subreddit, sub_df in df_rules.groupby('subreddit')}
     if append_rule:
         with Pool(NUM_PROCESS) as p:
             data = list(tqdm(p.imap(preprocess_conv_with_rule,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]), total=len(df)))
@@ -508,6 +511,8 @@ def evaluateDataset(dataset, encoder, context_encoder, predictor, batch_size):
 # Utility fn to calculate val F1, used during training to check for best model
 def get_best_val_f1(val_pairs, convid_to_uttr, encoder, context_encoder, predictor, batch_size):
     forecasts_df = evaluateDataset(val_pairs, encoder, context_encoder, predictor, batch_size)
+    
+    os.makedirs("temp", exist_ok=True)
     forecasts_df.to_csv("temp/temp.tsv",sep="\t")
 
     predicted_corpus = []
@@ -703,6 +708,7 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
                 if context_encoder is not None:
                     context_encoder.train()
                 attack_clf.train()
+        break
         # TODO mettere qui un break per vedere un primo ciclo di for
     best_f1, _, _ = evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_uttr, path_save, best_f1, valid_batch_size, save_model)
 
