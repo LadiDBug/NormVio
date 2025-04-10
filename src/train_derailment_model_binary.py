@@ -27,6 +27,7 @@ from models import EncoderBERT, ContextEncoderRNN, SingleTargetClf, Predictor
 from utils import import_jsonl, import_json, import_tsv, save_json, check_or_create_dir
 
 NUM_PROCESS = 22
+# TODO: capire se usano o no cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 tokenizer = BertTokenizer.from_pretrained(BERT_TYPE)
 
@@ -94,28 +95,28 @@ def get_wrong_rule_idx(correct_rule_idx, num_rule, num_example=1):
         return selected[0]
     return selected
 
-subreddit_types={}
-with open("data/subreddits/top100000_nsfw.json","r") as file:
-    subreddit_types['nsfw'] = set([k for k in json.load(file)])
-with open("data/subreddits/top100000_sfw.json","r") as file:
-    subreddit_types['sfw'] = set([k for k in json.load(file)])
+# subreddit_types={}
+# with open("data/subreddits/top100000_nsfw.json","r") as file:
+#     subreddit_types['nsfw'] = set([k for k in json.load(file)])
+# with open("data/subreddits/top100000_sfw.json","r") as file:
+#     subreddit_types['sfw'] = set([k for k in json.load(file)])
 
-def get_subreddit_type(subreddit_name):
-    if subreddit_name in subreddit_types['nsfw']:
-        return 'nsfw'
-    elif subreddit_name in subreddit_types['sfw']:
-        return 'sfw'
-    else:
-        print(f"we will assume sfw as we don't have nsfw/sfw info for r/{subreddit_name}")
-        return 'sfw'
-    return True
+# def get_subreddit_type(subreddit_name):
+#     if subreddit_name in subreddit_types['nsfw']:
+#         return 'nsfw'
+#     elif subreddit_name in subreddit_types['sfw']:
+#         return 'sfw'
+#     else:
+#         print(f"we will assume sfw as we don't have nsfw/sfw info for r/{subreddit_name}")
+#         return 'sfw'
+#     return True
 
 def get_input_text(tokens, rule_text=None, subreddit_name=None, append_rule=False, append_subreddit=None):
     input_text = tokens
     if append_subreddit == "subreddit":
         input_text = f"r/{subreddit_name} {input_text}"
-    elif append_subreddit == "nsfw":
-        input_text = f"r/{get_subreddit_type(subreddit_name)} {input_text}"
+   # elif append_subreddit == "nsfw":
+   #     input_text = f"r/{get_subreddit_type(subreddit_name)} {input_text}"
     if append_rule:
         input_text += " [SEP] "+rule_text
     return input_text
@@ -249,8 +250,12 @@ def preprocess_data(df, df_rules, cat_idx_mapping, target_class_idx, min_context
         with Pool(NUM_PROCESS) as p:
             data = list(tqdm(p.imap(preprocess_conv_with_rule,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]), total=len(df)))
     else:
-        with Pool(NUM_PROCESS) as p:
-            data = list(p.imap(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
+        #with Pool(NUM_PROCESS) as p:
+        #    data = list(p.imap(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
+        
+        #  sostituzione: df_rules_subreddit[row['subreddit']] <--> None
+        data = list(map(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, None, is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
+    
     pairs = [pair for pairs in data for pair in pairs]
     return pairs
 
@@ -698,6 +703,7 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
                 if context_encoder is not None:
                     context_encoder.train()
                 attack_clf.train()
+        # TODO mettere qui un break per vedere un primo ciclo di for
     best_f1, _, _ = evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_uttr, path_save, best_f1, valid_batch_size, save_model)
 
 
@@ -761,9 +767,11 @@ def filter_class(train_data, train_class):
     print(f"after filtering for {train_class}, {num_derail} derailments + {num_non_derail} non-derailments")
     return new_data
 
+
+##################################################################################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('--path_data', "-conv", type=str, required=True, help='conversation data path')
-parser.add_argument('--path_rule', "-rule", type=str, required=True, help='labeled rules data path')
+parser.add_argument('--path_rule', "-rule", type=str, required=False, help='labeled rules data path')
 parser.add_argument('--path_save', "-save", type=str, required=True, help='where to save the data splits')
 parser.add_argument('--save_model', "-save_model", action='store_true', default=False, help='whether to save the model or not')
 
@@ -783,6 +791,7 @@ parser.add_argument('--validate_every', "-validate", action='store', type=int, d
 
 parser.add_argument('--use_context', "-ctxt", action='store_true', default=False, help='use context')
 parser.add_argument('--append_rule', "-rule_text", action='store_true', default=False, help='to append the rule text as additional input')
+# append_subreddit per aggiungere communituy al commento (nome_subreddit+comment)
 parser.add_argument('--append_subreddit', "-sub", action='store', default=None, choices=["subreddit","nsfw"], help='verbose')
 parser.add_argument('--train_class', "-train", action='store', nargs='+', default=None, help='verbose')
 parser.add_argument('--target_classes', "-target", action='store', nargs='+', default=None, help='verbose')
@@ -792,7 +801,7 @@ parser.add_argument('--verbose', "-v", action='store_true', default=False, help=
 parser.add_argument('--sample', "-toy", action='store_true', default=False, help='sample dataset (toy experiment)')
 parser.add_argument('--no_cuda', "-cpu", action='store_true', default=False, help='only use cpu')
 args = parser.parse_args()
-assert exists(args.path_data) and exists(args.path_rule)
+assert exists(args.path_data) #and exists(args.path_rule)
 if args.no_cuda:
     device = torch.device('cpu')
 
@@ -804,24 +813,32 @@ save_name = args.path_save.split("/")[-1]
 check_or_create_dir(args.path_save)
 print(f"saving trained models to {args.path_save}")
 
-df_rules = import_tsv(args.path_rule)
-df_rules['cats'] = df_rules['cats'].apply(lambda x: eval(x))
+
+#df_rules = import_tsv(args.path_rule)
+#df_rules['cats'] = df_rules['cats'].apply(lambda x: eval(x))
+
 cat_idx_mapping = import_json("data/mappings/cat10_to_idx.json")
 cat_idx_mapping['neutral'] = 0
 NUM_CLASSES = 2
 
+#errore se una target class non è nel mapping-cats
 if args.target_classes is not None:
     assert all([(c in cat_idx_mapping) for c in args.target_classes]), f"one of target classes ({args.target_classes}) is not in idx mapping ({list(cat_idx_mapping.keys())})"
 
+# carico i dataset
 data = load_dataset(args.path_data, filter_removed=False)
 
+
+# se voglio allenare il modello su una lista di categorie precise, in input devo passare la train_class da usare 
 if args.train_class is not None:
     data['train'] = filter_class(data['train'], args.train_class)
     data['dev'] = filter_class(data['dev'], args.train_class)
 
+# scelta del dataset campione
 if args.sample:
     data = sample_dataset(data, 300)
 
+# per dati non sbilanciati
 criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1])).to(device)
 
 def print_stats(processed_data):
@@ -830,6 +847,7 @@ def print_stats(processed_data):
         num_neg = len(processed_data[split]) - num_pos
         print(f"{split}\tpos:neg = {num_pos}:{num_neg}\t{num_pos/(num_pos+num_neg)*100:.1f}%")
 
+# per lo scopo del modello +community, andrà direttamente nell'else.
 if args.append_rule:
     print(f"\ntraining started for appending rule experiment")
     set_random_seed(args.random_seed)
@@ -840,9 +858,11 @@ if args.append_rule:
     check_or_create_dir(path_save_class)
 
     processed_data = {}
-    processed_data['train'] = preprocess_data(data['train'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
-    processed_data['dev'] = preprocess_data(data['dev'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
-    processed_data['test'] = preprocess_data(data['test'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=True)
+    # sostituzione: df_rules <--> None
+    # TODO capire come rendere questa sostituizione piu efficiente per il README
+    processed_data['train'] = preprocess_data(data['train'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
+    processed_data['dev'] = preprocess_data(data['dev'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
+    processed_data['test'] = preprocess_data(data['test'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=True)
     print_stats(processed_data)
     
     # Define model
@@ -903,9 +923,11 @@ else:
         check_or_create_dir(path_save_class)
 
         processed_data = {}
-        processed_data['train'] = preprocess_data(data['train'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
-        processed_data['dev'] = preprocess_data(data['dev'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
-        processed_data['test'] = preprocess_data(data['test'], df_rules, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=True)
+        # sostituzione: df_rules <--> None
+        # TODO capire come rendere questa sostituizione piu efficiente per il README
+        processed_data['train'] = preprocess_data(data['train'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
+        processed_data['dev'] = preprocess_data(data['dev'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
+        processed_data['test'] = preprocess_data(data['test'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=True)
         print_stats(processed_data)
 
         # Define model

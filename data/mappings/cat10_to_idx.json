@@ -1,0 +1,13 @@
+{
+    "spam": 1,
+    "meta-rules": 2,
+    "content": 3,
+    "doxxing": 4,
+    "harassment": 5,
+    "hatespeech": 6,
+    "format": 7, 
+    "off-topic": 8,
+    "trolling": 9,
+    "incivility": 10
+
+}

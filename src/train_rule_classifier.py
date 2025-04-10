@@ -419,7 +419,7 @@ if training_args.do_train:
 # Get the metric function
 if data_args.task_name is not None:
     metric = load_metric("glue", data_args.task_name)
-# TODO: When datasets metrics include regular accuracy, make an else here and remove special branch from
+# non mio TODO: When datasets metrics include regular accuracy, make an else here and remove special branch from
 # compute_metrics
 
 # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
