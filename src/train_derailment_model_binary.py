@@ -29,7 +29,6 @@ from utils import import_jsonl, import_json, import_tsv, save_json, check_or_cre
 os.makedirs("temp", exist_ok=True)
 
 NUM_PROCESS = 22
-# TODO: capire se usano o no cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('DEVICE: ' , device)
 tokenizer = BertTokenizer.from_pretrained(BERT_TYPE)
@@ -50,6 +49,7 @@ def unicodeToAscii(s):
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
+
 
 
 def encode(text, max_length=MAX_LENGTH):
@@ -250,11 +250,11 @@ def preprocess_data(df, df_rules, cat_idx_mapping, target_class_idx, min_context
     rule_counts = {}
     #df_rules_subreddit = {subreddit: sub_df for subreddit, sub_df in df_rules.groupby('subreddit')}
     if append_rule:
-        with Pool(NUM_PROCESS) as p:
-            data = list(tqdm(p.imap(preprocess_conv_with_rule,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]), total=len(df)))
+        with Pool(NUM_PROCESS) as p:  # df_rules_subreddit[row['subreddit']]
+            data = list(tqdm(p.imap(preprocess_conv_with_rule,[(row, target_class_idx, cat_idx_mapping,None, is_test, use_context, append_subreddit, min_context, max_context) for row in df]), total=len(df)))
     else:
-        #with Pool(NUM_PROCESS) as p:
-        #    data = list(p.imap(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, df_rules_subreddit[row['subreddit']], is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
+       # with Pool(NUM_PROCESS) as p:
+       #     data = list(p.imap(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, None, is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
         
         #  sostituzione: df_rules_subreddit[row['subreddit']] <--> None
         data = list(map(preprocess_row_binary,[(row, target_class_idx, cat_idx_mapping, None, is_test, use_context, append_subreddit, min_context, max_context) for row in df]))
@@ -484,7 +484,8 @@ def evaluateDataset(dataset, encoder, context_encoder, predictor, batch_size):
         'label': []
     }
     with torch.no_grad():
-        for iteration in range(1, n_iters + 1):
+        # aggiunto tqdm
+        for iteration in tqdm(range(1, n_iters + 1)):
             batch, true_batch_size = next(batch_iterator)
             # Extract fields from batch
             input_variable, dialog_lengths, utt_lengths, batch_indices, dialog_indices, labels, conv_ids = batch
@@ -605,6 +606,7 @@ def evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_ut
         out_file_test = f'test_detection_{test_f1*100:.1f}_{test_acc*100:.1f}.tsv'
         df_detection.to_csv(join(path_save, out_file_test), sep='\t')
 
+        # ogni tot salva un checkpoint
         config = {
             'step': iteration,
             'epoch': round(iteration/n_iter_per_epoch, 2),
@@ -654,10 +656,13 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
 
     very_first = time()
     start_time = time()
-    for iteration in range(start_iteration, n_iteration + 1):
+    progress_bar = tqdm(range(start_iteration, n_iteration + 1), desc="Training", unit="iter")
+    for iteration in progress_bar:
+    #range(start_iteration, n_iteration + 1):
         training_batch, true_batch_size = next(batch_iterator)
         # Extract fields from batch
         input_variable, dialog_lengths, utt_lengths, batch_indices, dialog_indices, labels, _ = training_batch
+
 
         # Run a training iteration with batch
         loss = train(input_variable, dialog_lengths, utt_lengths, batch_indices, dialog_indices, labels,  # input args
@@ -669,9 +674,11 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
         # loss = 0
         print_loss += loss
 
-        # Print progress
+        # Print progress 
         if iteration % print_every == 0:
             print_loss_avg = print_loss / print_every
+            # riga aggiunta da me
+            progress_bar.set_postfix({"loss": print_loss_avg})
             
             took = time()-start_time
             took_total = time()-very_first
@@ -708,7 +715,7 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
                 if context_encoder is not None:
                     context_encoder.train()
                 attack_clf.train()
-        break
+        
         # TODO mettere qui un break per vedere un primo ciclo di for
     best_f1, _, _ = evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_uttr, path_save, best_f1, valid_batch_size, save_model)
 
@@ -881,6 +888,7 @@ if args.append_rule:
 
     print('Models built and ready to go!')
 
+   
     # Put dropout layers in train mode
     encoder.train()
     if args.use_context:
@@ -908,6 +916,7 @@ if args.append_rule:
     print(f"training for {args.epoch} took {(time()-training_started)/60:.0f}min")
 
 else:
+    
     path_save_summary = join(args.path_save,"summary.tsv")
     with open(path_save_summary,"w") as file:
         file.write("type\tvalid_f1\ttest_f1\n")
@@ -937,15 +946,18 @@ else:
         print_stats(processed_data)
 
         # Define model
-        encoder = EncoderBERT(device)
+        encoder = EncoderBERT(device).to(device)
+        
         if args.use_context:
-            context_encoder = ContextEncoderRNN(HIDDEN_SIZE, ENC_NUM_LAYER, DROPOUT_PROB, device)
+            context_encoder = ContextEncoderRNN(HIDDEN_SIZE, ENC_NUM_LAYER, DROPOUT_PROB, device).to(device)
         else:
             context_encoder = None
-        attack_clf = SingleTargetClf(HIDDEN_SIZE, NUM_CLASSES, DROPOUT_PROB, device)
+        attack_clf = SingleTargetClf(HIDDEN_SIZE, NUM_CLASSES, DROPOUT_PROB, device).to(device)
 
         print('Models built and ready to go!')
-
+        print(torch.cuda.is_available())  # Dovrebbe restituire True
+        print(torch.cuda.device_count())  # Dovrebbe mostrare ≥1
+        print(torch.cuda.get_device_name(0))  # Dovrebbe stampare il nome della GPU 
         # Put dropout layers in train mode
         encoder.train()
         if args.use_context:
