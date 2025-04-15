@@ -10,12 +10,13 @@ In this variant, the model receives both the community information and the final
 2. Category Mapping via JSON
     A new `mappings/` directory has been added, containing the file `cat10_to_idx.json`, which maps category names to class indices.
     Structure of cat10_to_idx.json:
+    ```
     {
     "off-topic": 1,
     "spam": 2,
     ...
     }
-
+    ```
 3. GPU Usage and Validagtion
     All model components (encoder, context encoder, classifier) are explicitly moved to the correct device using `.to(device)`. Additionally, runtime checks confirm GPU availability and print the name of the GPU being used. 
 
