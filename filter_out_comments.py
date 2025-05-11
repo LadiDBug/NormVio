@@ -13,8 +13,8 @@ def save_data(path, data):
             fw.write('\n')
 
 def main():
-    dataset_dir  = "C:/Users/Diana/Desktop/dataset"
-    new_dataset_dir = "C:/Users/Diana/Desktop/new_NormVio_dataset"
+    dataset_dir  = "path"
+    new_dataset_dir = "path"
     
     for file in os.listdir(dataset_dir):
 
@@ -29,6 +29,7 @@ def main():
         
         output_path = os.path.join(new_dataset_dir, file)
         save_data(output_path, new_data)
+
 
 if __name__ == "__main__":
     main()
