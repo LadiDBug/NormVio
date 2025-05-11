@@ -630,16 +630,19 @@ def evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_ut
             'file_out_valid': out_file_dev,
           #  'file_out_test':out_file_test
         }
+
         save_json(config, join(path_save, "best_config.json"))
+        checkpoint = config.copy()
+        checkpoint.update({
+            'en': encoder.state_dict(),
+            'ctx': context_encoder.state_dict() if context_encoder is not None else None,
+            'atk_clf': attack_clf.state_dict(),
+            'en_opt': encoder_optimizer.state_dict(),
+            'ctx_opt': context_encoder_optimizer.state_dict() if context_encoder_optimizer is not None else None,
+            'atk_clf_opt': attack_clf_optimizer.state_dict(),
+        })
         if save_model:
-            torch.save(config.update({
-                'en': encoder.state_dict(),
-                'ctx': context_encoder.state_dict() if context_encoder is not None else None,
-                'atk_clf': attack_clf.state_dict(),
-                'en_opt': encoder_optimizer.state_dict(),
-                'ctx_opt': context_encoder_optimizer.state_dict() if context_encoder_optimizer is not None else None,
-                'atk_clf_opt': attack_clf_optimizer.state_dict(),
-            }), join(path_save,"finetuned_model.pt"))
+            torch.save(checkpoint, join(path_save,"finetuned_model.pt"))
     return best_f1, dev_f1
 
 def trainIters(processed_data, original_data, path_save, encoder, context_encoder, attack_clf,
@@ -728,8 +731,6 @@ def trainIters(processed_data, original_data, path_save, encoder, context_encode
                     context_encoder.train()
                 attack_clf.train()
         
-        # TODO mettere qui un break per vedere un primo ciclo di for
-    #TODO: vedere se si fa riferimento a test_f1 in evaluate
     best_f1, _ = evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_uttr, path_save, best_f1, valid_batch_size, save_model)
 
 
@@ -759,7 +760,7 @@ rule_configs = {
 
 def load_dataset(path, filter_removed=False):
     data = {}
-    for split in ["train","test_n_communities_out","test_n_rules_out", "test_stratified", "dev"]:
+    for split in ["train","dev"]:
         data[split]= import_jsonl(join(path, split+".jsonl"))
         if filter_removed:
             # no longer used as we changed to do this in prepare_data.py
@@ -848,7 +849,7 @@ print(f"saving trained models to {args.path_save}")
 #df_rules['cats'] = df_rules['cats'].apply(lambda x: eval(x))
 
 cat_idx_mapping = import_json("data/mappings/cat10_to_idx.json")
-cat_idx_mapping['neutral'] = 0
+cat_idx_mapping['Safe'] = 0
 NUM_CLASSES = 2
 
 #errore se una target class non è nel mapping-cats
@@ -940,9 +941,9 @@ else:
     # Prende tutte le classi dal mapping index se non è stato specificato target_class
     target_classes = [args.target_classes] if args.target_classes is not None else list(cat_idx_mapping.keys()) 
     
-    # esclude dalla target class #TODO: capire perche
-    if "neutral" in target_classes:
-        target_classes.remove("neutral")
+
+    if "Safe" in target_classes:
+        target_classes.remove("Safe")
     if "doxxing" in target_classes:
         target_classes.remove("doxxing")
 
@@ -1011,10 +1012,12 @@ else:
         training_ended = time()
         print(f"training for {args.epoch} took {(time()-training_started)/60:.0f}min")
         res = import_json(join(path_save_class, "best_config.json"))
-        print(f"{target_class}: best f1: {res['test_f1']*100:.1f} (val: {res['valid_f1']*100:.1f})")
+        #print(f"{target_class}: best f1: {res['test_f1']*100:.1f} (val: {res['valid_f1']*100:.1f})")
+        print(f"{target_class}: best f1:  (val: {res['valid_f1']*100:.1f})")
         
         with open(path_save_summary,"a") as file:
             
-            file.write(f"{target_class}\t{res['valid_f1']}\t{res['test_f1']}\n")
+            # file.write(f"{target_class}\t{res['valid_f1']}\t{res['test_f1']}\n")
+            file.write(f"{target_class}\t{res['valid_f1']}\n")
 
 

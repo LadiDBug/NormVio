@@ -623,15 +623,19 @@ def evaluate(iteration, loss, encoder, context_encoder, attack_clf, convid_to_ut
             'file_out_test':out_file_test
         }
         save_json(config, join(path_save, "best_config.json"))
+        # Copy of config in order to ad data for checkpoint
+        checkpoint = config.copy()
+        checkpoint.update({
+            'en': encoder.state_dict(),
+            'ctx': context_encoder.state_dict() if context_encoder is not None else None,
+            'atk_clf': attack_clf.state_dict(),
+            'en_opt': encoder_optimizer.state_dict(),
+            'ctx_opt': context_encoder_optimizer.state_dict() if context_encoder_optimizer is not None else None,
+            'atk_clf_opt': attack_clf_optimizer.state_dict(),
+        })
         if save_model:
-            torch.save(config.update({
-                'en': encoder.state_dict(),
-                'ctx': context_encoder.state_dict() if context_encoder is not None else None,
-                'atk_clf': attack_clf.state_dict(),
-                'en_opt': encoder_optimizer.state_dict(),
-                'ctx_opt': context_encoder_optimizer.state_dict() if context_encoder_optimizer is not None else None,
-                'atk_clf_opt': attack_clf_optimizer.state_dict(),
-            }), join(path_save,"finetuned_model.pt"))
+            torch.save(checkpoint, join(path_save,"finetuned_model.pt"))
+ 
     return best_f1, dev_f1, test_f1
 
 def trainIters(processed_data, original_data, path_save, encoder, context_encoder, attack_clf,
@@ -939,7 +943,6 @@ else:
 
         processed_data = {}
         # sostituzione: df_rules <--> None
-        # TODO capire come rendere questa sostituizione piu efficiente per il README
         processed_data['train'] = preprocess_data(data['train'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
         processed_data['dev'] = preprocess_data(data['dev'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=False)
         processed_data['test'] = preprocess_data(data['test'], None, cat_idx_mapping, target_class_idx, args.min_context, args.max_context, args.use_context, append_subreddit=args.append_subreddit, append_rule=args.append_rule, is_test=True)
@@ -985,7 +988,6 @@ else:
         print(f"training for {args.epoch} took {(time()-training_started)/60:.0f}min")
         res = import_json(join(path_save_class, "best_config.json"))
         print(f"{target_class}: best f1: {res['test_f1']*100:.1f} (val: {res['valid_f1']*100:.1f})")
-        with open(path_save_summary,"w") as file:
+        with open(path_save_summary,"a") as file:
             file.write(f"{target_class}\t{res['valid_f1']}\t{res['test_f1']}\n")
-
 
