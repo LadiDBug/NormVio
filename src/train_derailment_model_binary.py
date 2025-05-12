@@ -928,8 +928,8 @@ else:
     target_classes = [args.target_classes] if args.target_classes is not None else list(cat_idx_mapping.keys()) 
     if "neutral" in target_classes:
         target_classes.remove("neutral")
-    if "doxxing" in target_classes:
-        target_classes.remove("doxxing")
+    # if "doxxing" in target_classes:
+    #     target_classes.remove("doxxing")
     for target_class in target_classes:
         print(f"\ntraining started for {target_class}")
         set_random_seed(args.random_seed)
