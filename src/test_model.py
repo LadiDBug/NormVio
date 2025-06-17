@@ -389,9 +389,9 @@ def evaluate(encoder, attack_clf, processed_data, convid_to_uttr, model_output_d
 def main():
 
     # path vari
-    test_path = "C:/Users/Diana/Desktop/datset_test"
-    models_dir = "C:/Users/Diana/Desktop/NormVio/models_lemmy_data_0520_1033"
-    output_dir = "C:/Users/Diana/Desktop/output_test"
+    test_path = path
+    models_dir = path
+    output_dir = path
 
     # path idx delle categorie
     cat_idx_mapping = import_json("data/mappings/cat10_to_idx.json")

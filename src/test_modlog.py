@@ -135,7 +135,7 @@ def preprocess_row_binary(inp):
 
     encoded_final_comment = encode(get_input_text(final_comment["tokens"], None, subreddit, append_rule, append_subreddit))
     encoded_context = None
-    
+
     data_sample_id = conv_id + "||" + comment_id + "||" + ",".join([str(c) for c in target_class_idx])
     if label is False:  #è un approve comment
         binary_label = 0
@@ -378,9 +378,9 @@ def evaluate(encoder, attack_clf, processed_data, convid_to_uttr, model_output_d
 def main():
 
     # path vari
-    test_path = "C:/Users/Diana/Desktop/test_vari_modlog"
-    models_dir = "C:/Users/Diana/Desktop/modlog_data/models"
-    output_dir = "C:/Users/Diana/Desktop/test_modlog_1"
+    test_path = path
+    models_dir = path
+    output_dir = path
 
     # path idx delle categorie
     cat_idx_mapping = import_json("data/mappings/cat10_to_idx.json")
