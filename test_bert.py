@@ -79,7 +79,7 @@ def train(model, dataloader, optimizer, criterion):
     return avg_loss, accuracy
 
 # 7. Esecuzione del training
-num_epochs = 15  # Impostato a 2 per il test, puoi aumentarlo a 10 o più per allenamenti veri
+num_epochs = 15  
 for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}/{num_epochs}")
     avg_loss, accuracy = train(model, train_dataloader, optimizer, criterion)
