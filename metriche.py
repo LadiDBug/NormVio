@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Impostazioni
-base_path = './._0414_1333'  # Cambialo se necessario
+base_path = './._0414_1333'  
 output_tsv = 'metriche_best_config.tsv'
 
 metriche = [
@@ -24,7 +24,7 @@ for categoria in os.listdir(base_path):
             config = json.load(f)
         record = {'categoria': categoria}
         for metrica in metriche:
-            record[metrica] = round(config.get(metrica, 0), 4)  # numeri più leggibili
+            record[metrica] = round(config.get(metrica, 0), 4) 
         dati.append(record)
 
 # Crea DataFrame ordinato
